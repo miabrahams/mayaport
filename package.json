@@ -1,8 +1,8 @@
 {
     "name": "mayaport",
     "displayName": "MayaPort",
-    "description": "Simple vscode to Maya  command port interface for mel and python scripts",
-    "version": "0.3.0",
+    "description": "Simple vscode to Maya command port interface for mel and python scripts",
+    "version": "2.0.0",
     "publisher": "JonMacey",
     "engines": {
         "vscode": "^1.0.0"
@@ -20,54 +20,55 @@
         "Other"
     ],
     "activationEvents": [
-        "onCommand:extension.openMayaPort"
+        "onCommand:mayaport.openMayaPort"
     ],
     "main": "./extension",
     "contributes": {
         "commands": [
             {
-                "command": "extension.openMayaPort",
+                "command": "mayaport.openMayaPort",
                 "title": "mayaPort"
             },
             {
-                "command": "extension.sendPythonToMaya",
+                "command": "mayaport.sendPythonToMaya",
                 "title": "sendPythonToMaya"
             },
             {
-                "command": "extension.sendMelToMaya",
+                "command": "mayaport.sendMelToMaya",
                 "title": "sendMelToMaya"
             }
         ],
         "configuration": {
             "type": "object",
-            "title": "port configuration",
+            "title": "Port Configuration",
             "properties": {
                 "mayaport.melPortID": {
-                    "type": "integer",
-                    "default": 7001,
-                    "description": "the port to send the mel commands ensure they are the same as maya"
-                },
-                "mayaport.pythonPortID": {
-                    "type": "integer",
-                    "default": 7002,
-                    "description": "the port to send the python commands ensure they are the same as maya"
+                "type": "integer",
+                "default": 4434,
+                "description": "Port ID for Maya's commandPort. Be sure this matches the port you've specified in Maya."
                 },
                 "mayaport.mayahost": {
-                    "type": "string",
-                    "default": "localhost",
-                    "description": "the hostname of the maya host machine default to local host"
+                "type": "string",
+                "default": "localhost",
+                "description": "Hostname of the machine running Maya. Currently values other than localhost."
                 }
             }
         },
         "keybindings": [
             {
-                "command": "extension.sendPythonToMaya",
-                "key": "alt+shift+p",
-                "mac": "ctrl+shift+p",
+                "command": "mayaport.sendPythonToMaya",
+                "key": "alt+shift+e",
+                "mac": "ctrl+shift+e",
                 "when": "editorTextFocus"
             },
             {
-                "command": "extension.sendMelToMaya",
+                "command": "mayaport.openMayaPort",
+                "key": "ctrl+shift+p",
+                "mac": "cmd+shift+p",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "mayaport.sendMelToMaya",
                 "key": "alt+shift+m",
                 "mac": "ctrl+shift+m",
                 "when": "editorTextFocus"
@@ -79,5 +80,10 @@
     },
     "devDependencies": {
         "vscode": "^0.11.0"
+    },
+    "__metadata": {
+        "id": "8757dd16-5dc7-4eba-b792-ed27a42bdca8",
+        "publisherId": "076eaaf2-7ce8-423b-a1b0-d83a63258be3",
+        "publisherDisplayName": "Jon Macey"
     }
-}
+    }

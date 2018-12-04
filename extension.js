@@ -1,130 +1,153 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
+// Imports
 var vscode = require('vscode');
 var net = require('net');
-// the socket for the python ports created at startup of script
-var socketPython;
-// the socket for the mel port create at startup of script
+var fs = require('fs');
+var os = require('os');
+
+// We create a MEL socket and use it to execute both Python and MEL commands.
+// Commands executed in the Python commandport do not share variables with the
+// rest of the Maya Python runtime, but the python() command inside MEL behaves
+// as you expect.
 var socketMel;
-// variables for ports, can be over ridden in config if you wish to use another port, going to default to 7001 for mel and 7002 for python
-var melPort=7001;
-var pythonPort=7002; 
+
+// Hostname and port can be configured if you wish to use other ports or remote servers.
 var mayahost='localhost';
-// this method is called when your extension is activated
-// your extension is activated the very first time the command is executed
-function activate(context) {
+var melPort=4434;
 
-    console.log('"mayaport" is now active!');
-    console.log('To use make sure the following code is run in Maya python ');
-    var msg=`
-import maya.cmds as cmds
-try:
-    cmds.commandPort(name=":7001", close=True)
-except:
-    cmds.warning('Could not close port 7001 (maybe it is not opened yet...)')
-try:
-    cmds.commandPort(name=":7002", close=True)
-except:
-    cmds.warning('Could not close port 7002 (maybe it is not opened yet...)')
-
-cmds.commandPort(name=":7001", sourceType="mel")
-cmds.commandPort(name=":7002", sourceType="python")
-`;
-    console.log(msg);
-
-    // The command has been defined in the package.json file
-    // Now provide the implementation of the command with  registerCommand
-    // The commandId parameter must match the command field in package.json
-    var disposable = vscode.commands.registerCommand('extension.openMayaPort', function () 
-    {
-        var config=vscode.workspace.getConfiguration('mayaport');
-        
-        if(config.has("melPortID")){
-            melPort=config.get("melPortID");
-        }
-        if(config.has("pythonPortID")){
-            pythonPort=config.get("pythonPortID");
-        }
-         if(config.has("mayahost")){
-            mayahost=config.get("mayahost");
-        }
-        // create a connection to maya on port 7001 for Mel commands
-        socketMel = net.createConnection( melPort,mayahost);
-        socketMel.on('error', function(error) { 
-            vscode.window.showErrorMessage("Unable to connect to port " + melPort + " on Host " + mayahost +" in maya for Mel " + error.code);
-         });
-        socketMel.on('data', function(data){
-            console.log(data.toString());
-        });
-        // create a connection to maya on port 7002 for python commands
-
-        socketPython = net.createConnection(pythonPort,mayahost);
-        socketPython.on('error', function(error) { 
-            vscode.window.showErrorMessage("Unable to connect to port "+ pythonPort +" on Host "+ mayahost+"  in maya for Python " + error.code);
-         });
-        socketPython.on('data', function(data){
-            console.log(data.toString());
-        });
-
-    });
-
-    context.subscriptions.push(disposable);
-
-
-    var disposable = vscode.commands.registerCommand('extension.sendPythonToMaya', function () {
-
-        var editor = vscode.window.activeTextEditor;
-        var selection = editor.selection;
-        var text;
-        // if we have selected text only send this
-        if (selection.isEmpty != true )
-        {
-            text = editor.document.getText(selection);     
-        }
-        // otherwise send the whole document
-        else
-        {
-            text=editor.document.getText();
-        }
-        socketPython.write(text);
-        socketPython.write('\n');
-        vscode.window.setStatusBarMessage("Python sent to Maya");
-        
-    
-    });
-
-    context.subscriptions.push(disposable);
-
-    var disposable = vscode.commands.registerCommand('extension.sendMelToMaya', function () {
-
-        var editor = vscode.window.activeTextEditor;
-        var selection = editor.selection;
-        var text;
-        if (selection.isEmpty != true )
-        {
-            text = editor.document.getText(selection);    
-        }
-        else
-        {
-            text=editor.document.getText();
-        }
-        socketMel.write(text);
-        socketMel.write('\n');
-        vscode.window.setStatusBarMessage("mel sent to Maya");
-
-        });
-
-    context.subscriptions.push(disposable);
-
+// Temporary files where script commands are transferred to Maya.
+// If vscode makes the 'tmp' module available, we could replace this:
+// var tmp = require('tmp');
+// var tmpfile = tmp.fileSync({ mode: 0644, prefix: 'mayaport-', postfix: '.py' });
+const tmp_loc = os.tmpdir().toString().replace(/\\/g, "/") + '/';
+var tmpnum = Math.round(Math.random() * 10000);
+function tmp_filename(tmpnum) {
+    return tmp_loc + "mayafiletmp" + tmpnum + ".py";
 }
 
+
+// Escape Python code to embed in a MEL string
+escapePythonForMEL = function(pycmd) {
+   return pycmd.replace(/[\\"']/g, '\\$&').replace(/\u0000/g, '\\0');
+}
+
+// Create a Maya Output log channel
+var outputChannel = vscode.window.createOutputChannel('Maya Output');
+outputChannel.show();
+function writeOutput(socketdata) {
+    var lines = socketdata.toString().split("\n");
+    lines.forEach(line => {
+        if (line.length > 1) { outputChannel.appendLine(line); }
+    });
+}
+
+function getTextSelection() {
+    var editor = vscode.window.activeTextEditor;
+    var selection = editor.selection;
+    if (selection.isEmpty) {
+        return editor.document.getText();
+    }
+    else {
+        return editor.document.getText(selection);
+    }
+}
+
+function sleep (time) {
+    return new Promise((resolve) => setTimeout(resolve, time));
+}
+
+function sendMELCommand(cmd) {
+    // Could add safety checks, debugging etc in this function
+    socketMel.write(cmd);
+    socketMel.write('\n');
+}
+
+// Primary activation command
+function activate(context) {
+
+    /// Register commands
+    var disposable = vscode.commands.registerCommand('mayaport.openMayaPort', function ()
+    {
+        // Setup custom ports
+        var config=vscode.workspace.getConfiguration('mayaport');
+        if(config.has("melPortID")) {
+            melPort=config.get("melPortID");
+        }
+         if(config.has("mayahost")) {
+            mayahost=config.get("mayahost");
+        }
+
+        // Connect to MEL commandport and set up event handlers
+        socketMel = net.createConnection(melPort, mayahost);
+        socketMel.on('error', function(error) {
+            var errorMsg = "Unable to connect to port " + melPort + " on Host " + mayahost +" in maya for Mel " + error.code;
+            vscode.window.showErrorMessage(errorMsg);
+        });
+        socketMel.on('data', function(data) {
+            writeOutput(data);
+        });
+
+        writeOutput('MayaPort setup complete.');
+    });
+
+    context.subscriptions.push(disposable);
+
+
+
+    // This function takes care of wrapping Python commands inside of MEL commands.
+    var disposable = vscode.commands.registerCommand('mayaport.sendPythonToMaya', function ()
+    {
+        var cmdText = getTextSelection();
+
+        // Single line commands return a usable value so skip writing the external file here.
+        var num_newlines = (cmdText.match(/\n/g) || []).length;
+        if ((num_newlines < 1) && (cmdText.length < 1024)) {
+            var MELRunPython = `python("${escapePythonForMEL(cmdText)}");`;
+            sendMELCommand(MELRunPython);
+        }
+
+
+        else {
+            fs.unlink(tmp_filename(tmpnum), (err) => { if (err) console.log('Could not delete temporary file'); });
+            tmpnum += 1;
+            var tmp_file = tmp_filename(tmpnum + 1);
+            var MELRunPython = `python ("execfile ('${tmp_file}')");`;
+            fs.open(tmp_file, 'wx', (err, fd) =>
+            {
+                if (err) {
+                    if (err.code === 'EEXIST') {
+                        fs.unlink(tmp_file);
+                        fs.writeFileSync(tmp_file, cmdText);
+                        sendMELCommand(MELRunPython)
+                    }
+                    else {
+                        writeOutput("Failed to send Python command: " + err.toString());
+                    }
+                } else {
+                    fs.writeSync(fd, cmdText);
+                    sendMELCommand(MELRunPython)
+                }
+            });
+        }
+    });
+    context.subscriptions.push(disposable);
+
+
+    var disposable = vscode.commands.registerCommand('mayaport.sendMelToMaya', function ()
+    {
+        var text = getTextSelection();
+        sendMELCommand(text)
+        // vscode.window.setStatusBarMessage("MEL sent to Maya");
+    });
+    context.subscriptions.push(disposable);
+}
 exports.activate = activate;
 
 
 
 // this method is called when your extension is deactivated
 function deactivate() {
+    sendMELCommand("cmdFileOutput -closeAll;");
+    fs.unlink(tmp_filename(tmpnum), (err) => { if (err) console.log('Could not delete temporary file'); });
     socketMel.close();
-    socketPython.close();
 }
 exports.deactivate = deactivate;

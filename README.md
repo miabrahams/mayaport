@@ -1,14 +1,13 @@
-# mayaport README
+# MayaPort README
 
-MayaPort is a simple extension to allow sending the text document or selected text to the maya, you must first enable the commandPort in maya. To open a port for mel and python use the following code, which uses the default values, change to different port values as applicable. 
+MayaPort is a simple extension to allow sending commands directly from Visual Studio Code to Maya. To set it up you must first open a commandPort in maya. This can be done with the following Python code, which uses the default port 4436 for MayaPort. You can use a different port by changing the value in the code snippet and changing the extension variable *mayaport.melPortID*.
 
 ```
 import maya.cmds as cmds
-# Open new ports
-cmds.commandPort(name=":7001", sourceType="mel", echoOutput=True)
-cmds.commandPort(name=":7002", sourceType="python", echoOutput=True)
+cmds.commandPort(name=":4436", sourceType="mel", echoOutput=True)
 ```
-To enable ports at startup create a file named userSetup.mel in the following folder:
+
+To open the commandport at startup automatically, add the code snippet to userSetup.py, which is located in the following folder:
 
 ```
 Windows: <drive>:\Documents and Settings\<username>\My Documents\maya\<Version>\scripts
@@ -17,44 +16,33 @@ Linux: ~/maya/<version>/scripts.
 (where ~ is your home folder)
 ```
 
-In the userSetup.mel file add the following
-
-```
-commandPort -name "localhost:7001" -sourceType "mel" -echoOutput; 
-commandPort -name "localhost:7002" -sourceType "python" -echoOutput;
-```
+If usersetup.py does not exist, you can create it.
 
 If you require a different client machine it is possible to set the host variable and send to another host. In this case the port needs to be explicitly opened in maya as follows passing in the ip address (or hostname if DNS working etc) of the machine.
 
 ```
 import maya.cmds as cmds
 # Open new ports
-cmds.commandPort(name="192.168.0.4:7001", sourceType="mel")
-cmds.commandPort(name="192.168.0.4:7002", sourceType="python")
+cmds.commandPort(name="192.168.0.4:4436", sourceType="mel")
 ```
 
 ## Features
 
-You can send both mel and python code via the different commands sendPythonToMaya or sendMelToMaya
+You can send both mel and python code via the different commands sendPythonToMaya or sendMelToMaya.
 
-To get started use CMD + Shift P and run mayaPort, this will attempt to open two sockets on the localhost, using ports 7001 and 7002 one for Mel code and one for python code.
+To get started use cmd+shift+p and run mayaPort. This will connect VSCode to Maya sockets and enable sending code snippets.
 
-To send all the text so maya use CMD + Shift P and run sendMelToMaya or sendPythonToMaya depending upon the code you are writing. If you only wish to send a small segement of code just select the code required and use the same commands.
+You can use the commands alt+shift+e or alt+shift+m, which will send code to Maya as Python or MEL respectively. The extension will send the currently selected code, or if nothing is selected, it will send the contents of the current file.
 
-The output from maya will be sent back to the debug console, to enable full logging the commandPort must have the -echoOutput flag set otherwise only the results are showm.
+The output from maya will be sent back to the debug console. To enable full logging the commandPort must have the -echoOutput flag set otherwise only the results are shown.
 
-###Keyboard Shortcuts 
+### Keyboard Shortcuts
 
-On Mac
-
-Use CTRL+SHIFT+P to send python code to Maya.
-Use CTRL+SHIFT+M to send mel code to Maya.
-
-On Windows and Linux
-
-Use ALT+SHIFT+P to send python code to Maya.
+Use ALT+SHIFT+E to send python code to Maya.
 Use ALT+SHIFT+M to send mel code to Maya.
 
+## Source code
+Source code can be found on [github](https://github.com/NCCA)
 
 ## Requirements
 
@@ -66,28 +54,37 @@ To set custom port ID's edit the user settings (File > Preferences (Code > Prefe
 ```
 {
     "mayaport.melPortID": 7005,
-    "mayaport.pythonPortID": 7007
     "mayaport.mayahost" : "192.168.0.4"
 }
 ```
 and restart the extension. 
+
 ## Known Issues
 
-Can occasionally lose connection to maya, not yet tested on windows or linux.
+Issues are tracked on the github page [here](https://github.com/NCCA/mayaport/issues)
 
 ## Release Notes
-Release 1.0
 
-First major release complete, the output from maya is now captured and logged to the debug console and all things seem to work ok.
+### Release 2.0
 
-Release 0.3
+- **Breaking Change** Use port 4436 instead of 7001 to match MayaCharm.
+- **Breaking Change** Update command namespace to "mayaport"  (This breaks older keyboard shortcut settings)
+- **Breaking Change** Write large Python commands to external files. Remote Maya connections will no longer work with Python.
+- Send Python commands using MEL's python() command instead of opening a Python commandPort.
+- Change keyboard shortcuts to send Python/MEL to alt+shift+e / alt+shift+m respectively.
+
+### Release 1.0
+
+First major release complete. The output from maya is now captured and logged to the debug console.
+
+### Release 0.3
 
 Added the ability to specify the host machine for maya. 
 Updated the key bidings for Windows as the keys clashed with command palette use.
 
-Release 0.2
+### Release 0.2
 Updated README.md as was ill formated in the store.
 
 ## ToDo
 * get user feedback and see what else can be added.
-* see how to add menu items
+* Write a command to send as MEL/Python depending on the current source mode
